@@ -1,0 +1,43 @@
+# For phone users: the repo only needs two things
+#   1) sonora-src.zip  (uploaded in the repo root)
+#   2) this file, saved as .github/workflows/build.yml
+# The workflow unzips the source, builds it and attaches the finished jar to the run.
+name: build-from-zip
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'sonora-src.zip'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: unzip source
+        id: src
+        run: |
+          mkdir work
+          unzip -q sonora-src.zip -d work
+          WRAPPER="$(find work -maxdepth 3 -name gradlew | head -n 1)"
+          if [ -z "$WRAPPER" ]; then echo "gradlew not found inside sonora-src.zip"; exit 1; fi
+          echo "dir=$(dirname "$WRAPPER")" >> "$GITHUB_OUTPUT"
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: build
+        working-directory: ${{ steps.src.outputs.dir }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build
+      - name: capture build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sonora-jar
+          path: |
+            ${{ steps.src.outputs.dir }}/build/libs/*.jar
+            !${{ steps.src.outputs.dir }}/build/libs/*-sources.jar
+            
